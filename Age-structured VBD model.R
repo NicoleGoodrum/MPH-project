@@ -28,13 +28,6 @@ sir <- odin({
   beta[2,1] <- 0.6
   beta[2,2] <- 0.3
   lambda_b[] <- beta[i]*Im/Nm
-
-  # AI generated
-  #P1 <- Im / Nm
-  #P2 <- 0.5 * Im / Nm   # or any real second mechanism
-  #lambda_b[] <- beta[i,1] * P1 + beta[i,2] * P2
-  #beta <- parameter()
-  #lambda_b[] <- sum(beta[i,])*Im/Nm
   
   
   #initial conditions
