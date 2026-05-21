@@ -44,7 +44,7 @@ m &=
 \end{aligned}
 $$
 
-```{r cars}
+```{r }
 library(odin2)
 library(dust2)
 library(monty)
@@ -135,7 +135,7 @@ y <- dust_unpack_state(sys, y)
 
 ## Plot
 
-```{r pressure, echo=TRUE}
+```{r, echo=TRUE}
 library(ggplot2)
 library(tidyr)
 
