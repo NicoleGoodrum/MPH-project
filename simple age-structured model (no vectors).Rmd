@@ -1,0 +1,152 @@
+---
+title: "Simple age-structured model (no vectors)"
+output: html_document
+date: "2026-05-21"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Code
+
+Equations
+
+$$
+\frac{\mathrm{d}S_i}{\mathrm{d}t} = (\gamma N_i) - (\lambda_i S_i) - (\mu S_i)
+$$
+$$
+\frac{\mathrm{d}E_i}{\mathrm{d}t} = (\lambda_i S_i) - (\theta E_i) - (\mu E_i)
+$$
+$$
+\frac{\mathrm{d}I_i}{\mathrm{d}t} = (\theta E_i) - (\mu I_i) - (\sigma I_i)
+$$
+$$
+\frac{\mathrm{d}R_i}{\mathrm{d}t} = (\sigma I_i) - (\mu R_i)
+$$
+$$
+\lambda_i = m_{i1}\frac{I_1}{N_1} + m_{i2}\frac{I_2}{N_2}
+$$
+Beta values currently theoretical
+$$
+\begin{aligned}
+m &=
+\begin{bmatrix}
+1 & 0.8 \\
+0.1 & 0.2
+\end{bmatrix}
+\qquad
+m &=
+\begin{bmatrix}
+\beta_{ii} & \beta_{ij} \\
+\beta_{ji} & \beta_{jj}
+\end{bmatrix}
+\end{aligned}
+$$
+
+```{r cars}
+library(odin2)
+library(dust2)
+library(monty)
+library(ggplot2)
+
+# matrix
+
+m <- matrix(c(2,0.8,0.1,0.2), 2, 2, byrow=TRUE)
+
+sir <- odin({
+  
+  # Equations for transitions between compartments by group
+  
+  deriv(S[]) <- (gamma*N[i]) - (lambda[i]*S[i]) - (mu*S[i])
+  
+  deriv(E[]) <- (lambda[i]*S[i]) - (theta*E[i]) - (mu*E[i])
+  
+  deriv(I[]) <- (theta*E[i]) - (mu*I[i]) - (sigma*I[i])
+  
+  deriv (R[]) <- (sigma*I[i]) - (mu*R[i])
+  
+  
+  # Calculate force of infection
+  
+  
+  m <- parameter()
+  
+  lambda[] <- m[i,1] * I[1]/N[1] + m[i,2] * I[2]/N[2]
+  
+  
+  # initial conditions
+  
+  initial(S[]) <- N[i]
+  
+  initial(E[]) <- 0
+  
+  initial(I[]) <- I0
+  
+  initial(R[]) <- 0
+  
+  # User defined parameters:
+  
+  N <- parameter()
+  
+  I0 <- parameter(10)
+  
+  gamma <- parameter(0.0015) # assumed same as mu for now
+  
+  mu <- parameter(0.0015) 
+  
+  theta <- parameter(0.15)
+  
+  sigma <- parameter(0.1)
+  
+  # Dimensions of arrays
+  
+  dim(S) <- 2
+  
+  dim(E) <- 2
+  
+  dim(I) <- 2
+  
+  dim(R) <- 2
+  
+  dim(N) <- 2
+  
+  dim(m) <- c(2, 2)
+  
+  dim(lambda) <- 2
+})
+
+sys <- dust_system_create(
+  sir,
+  list(
+    m = m,
+    N = c(1000, 1000)
+  )
+)
+
+dust_system_set_state_initial(sys)
+
+t <- seq(0, 100)
+
+y <- dust_system_simulate(sys, t)
+
+y <- dust_unpack_state(sys, y)
+```
+
+## Plot
+
+```{r pressure, echo=TRUE}
+library(ggplot2)
+library(tidyr)
+
+df <- as.data.frame(t(y$I))
+df$t <- t
+colnames(df)[1:2] <- c("group1", "group2")
+df_long <- pivot_longer(df, cols = c(group1, group2),
+                        names_to = "group",
+                        values_to = "I")
+ggplot(df_long, aes(x = t, y = I, color = group)) +
+  geom_line() +
+  labs(x = "Time", y = "Infected birds") +
+  theme_minimal()
+```
