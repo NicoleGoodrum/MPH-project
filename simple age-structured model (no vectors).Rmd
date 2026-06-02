@@ -49,31 +49,23 @@ library(odin2)
 library(dust2)
 library(monty)
 library(ggplot2)
+library(tidyr)
 
 # matrix
 
-m <- matrix(c(2,0.8,0.1,0.2), 2, 2, byrow=TRUE)
+m <- matrix(c(1,1,0.2,0.2), 2, 2, byrow=TRUE) # 1,1 1,2 2,1 2,2
 
 sir <- odin({
   
   # Equations for transitions between compartments by group
   
-  deriv(S[]) <- (gamma*N[i]) - (lambda[i]*S[i]) - (mu*S[i])
+  deriv(S[]) <- (gamma*N[i]) - ((m[i,1] * I[1]/N[1] + m[i,2] * I[2]/N[2])*S[i]) - (mu*S[i])
   
-  deriv(E[]) <- (lambda[i]*S[i]) - (theta*E[i]) - (mu*E[i])
+  deriv(E[]) <- ((m[i,1] * I[1]/N[1] + m[i,2] * I[2]/N[2])*S[i]) - (theta*E[i]) - (mu*E[i])
   
   deriv(I[]) <- (theta*E[i]) - (mu*I[i]) - (sigma*I[i])
   
   deriv (R[]) <- (sigma*I[i]) - (mu*R[i])
-  
-  
-  # Calculate force of infection
-  
-  
-  m <- parameter()
-  
-  lambda[] <- m[i,1] * I[1]/N[1] + m[i,2] * I[2]/N[2]
-  
   
   # initial conditions
   
@@ -81,11 +73,14 @@ sir <- odin({
   
   initial(E[]) <- 0
   
-  initial(I[]) <- I0
+  initial(I[1]) <- I0
+  initial(I[2]) <- 0
   
   initial(R[]) <- 0
   
   # User defined parameters:
+
+  m <- parameter()
   
   N <- parameter()
   
@@ -120,7 +115,7 @@ sys <- dust_system_create(
   sir,
   list(
     m = m,
-    N = c(1000, 1000)
+    N = c(500, 500)
   )
 )
 
@@ -136,17 +131,16 @@ y <- dust_unpack_state(sys, y)
 ## Plot
 
 ```{r, echo=TRUE}
-library(ggplot2)
-library(tidyr)
 
 df <- as.data.frame(t(y$I))
 df$t <- t
-colnames(df)[1:2] <- c("group1", "group2")
-df_long <- pivot_longer(df, cols = c(group1, group2),
+colnames(df)[1:2] <- c("population 1", "population 2")
+df_long <- pivot_longer(df, cols = c("population 1", "population 2"),
                         names_to = "group",
                         values_to = "I")
 ggplot(df_long, aes(x = t, y = I, color = group)) +
   geom_line() +
-  labs(x = "Time", y = "Infected birds") +
+  scale_y_continuous(limits = c(0, 225))+
+  labs(title = "P1 beta=1, P2 beta=0.2", x = "Time (days)", y = "Infected birds") +
   theme_minimal()
 ```
