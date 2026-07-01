@@ -1,0 +1,384 @@
+---
+title: "01-07-26 avian metapopulation model final"
+output: html_document
+date: "2026-07-01"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Modifications
+
+This version has balanced population dynamics, standardised temperature using briere function and includes the bird breeding season. 1 infected bird is imported into each population in March of each year. Simulation runs over 5 years.
+
+## Equations
+
+$$
+\frac{\mathrm{d}S_i}{\mathrm{d}t} = (\gamma N_i) - (\lambda S_i) - (\mu S_i)
+$$ $$
+\frac{\mathrm{d}E_i}{\mathrm{d}t} = (\lambda S_i)  - (\theta E_i) - (\mu E_i)
+$$ $$
+\frac{\mathrm{d}I_i}{\mathrm{d}t} = (\theta E_i) - (\mu I_i) - (\sigma I_i) + seed
+$$ $$
+\frac{\mathrm{d}R_i}{\mathrm{d}t} = (\sigma I_i) - (\mu R_i)
+$$ $$
+\lambda = briere(beta_{i,1} \frac {I_1}{N_1} + beta_{i,2} \frac {I_2}{N_2} + beta_{i,3} \frac {I_3}{N_3}+ beta_{i,4} \frac {I_4}{N_4}+ beta_{i,5} \frac {I_5}{N_5})
+$$
+
+## Matrix
+
+$$
+\begin{aligned}
+beta &=
+\begin{bmatrix}
+3.0 & 0.01 & 0.01 \\
+0.01 & 3.0 & 0.01 \\
+0.01 & 0.01 & 3.0
+\end{bmatrix}
+\qquad
+beta &=
+\begin{bmatrix}
+\beta_{11} & \beta_{12} & \beta_{13}\\
+\beta_{21} & \beta_{22} & \beta_{23}\\
+\beta_{31} & \beta_{32} & \beta_{33}
+\end{bmatrix}
+\end{aligned}
+$$
+
+low connectivity is represented by beta = 0.01 moderate connectivity is represented by beta = 0.05 high connectivity is represented by beta = 0.1
+
+```{r matrix}
+library(odin2)
+library(dust2)
+library(monty)
+library(ggplot2)
+library(tidyr)
+
+# example beta = 0.1
+
+beta <- matrix(c(
+  3.0, 0.01, 0.01, 0.01, 0.01,
+  0.01, 3.0, 0.01, 0.01, 0.01,
+  0.01, 0.01, 3.0, 0.01, 0.01,
+  0.01, 0.01, 0.01, 3.0, 0.01,
+  0.01, 0.01, 0.01, 0.01, 3.0
+), 5, 5, byrow = TRUE)
+```
+
+## Random seed
+
+A random number is chosen 1-5 (10 times) to determine which population receives the infection seed
+
+```{r seed, echo=FALSE}
+seed_pop <- sample(1:5, 10, replace=TRUE)
+```
+
+## SIR model
+
+```{r SIR model}
+sir <- odin({
+  
+  # Equations for transitions between compartments by group
+  
+  deriv(S[]) <- (gamma*N[i]) - (lambda[i]*S[i]) - (mu*S[i]) - seed[i]
+  
+  deriv(E[]) <- (lambda[i]*S[i]) - (theta*E[i]) - (mu*E[i])
+  
+  deriv(I[]) <- (theta*E[i]) - (mu*I[i]) - (sigma*I[i]) + seed[i]
+  
+  deriv (R[]) <- (sigma*I[i]) - (mu*R[i])
+  
+  # with more populations it became easier to separate lambda
+  
+  lambda[] <- briere * (
+    beta[i,1] * I[1]/N[1] +
+      beta[i,2] * I[2]/N[2] +
+      beta[i,3] * I[3]/N[3] +
+      beta[i,4] * I[4]/N[4] +
+      beta[i,5] * I[5]/N[5]
+  )
+  
+  beta <- parameter()
+  
+  
+  # initial conditions
+  
+  N[] <- S[i] + E[i] + I[i] + R[i]
+  
+  initial(S[]) <- 600 
+  
+  initial(E[]) <- 0
+  
+  initial(I[]) <- 0 
+  
+  initial(R[]) <- 0
+  
+  # infection seeded on day 60 each year
+  year <- floor(time/365) + 1
+  seed[] <- if(
+    i == seed_pop[year] &&
+    time%%365 >= 60 &&
+    time%%365 < 61
+  ) I0 else 0
+  
+  # User defined parameters:
+  
+  briere <- interpolate(briere_time, briere_value, "linear")
+  
+  briere_time <- parameter(constant = TRUE)
+  briere_value <- parameter(constant = TRUE)
+  
+  seed_pop <- parameter(constant = TRUE)
+  
+  I0 <- parameter(10) # seed is 10 infected birds
+  
+  mu <- parameter(0.0015) # sensitivity analysis 0.00382
+  
+  theta <- parameter(0.5)
+  
+  sigma <- parameter(0.57) # house sparrow
+  # sensitivity analysis: 0.2
+  
+  # birth season may-july
+  gamma <- if (time %% 365 >= 121 && time %% 365 <= 213) 0.0059 else 0 #0.5 births per bird
+  # sensitivity analysis  0.015 (1.5 births per bird)
+  
+  # Dimensions of arrays
+  
+  dim(S) <- 5
+  
+  dim(E) <- 5
+  
+  dim(I) <- 5
+  
+  dim(R) <- 5
+  
+  dim(N) <- 5
+  
+  dim(beta) <- c(5, 5)
+  
+  dim(lambda) <- 5
+  
+  dim(briere_time, briere_value) <- parameter(rank = 1)
+  
+  dim(seed_pop) <- 10
+  
+  dim(seed) <- 10
+})
+
+```
+
+## Including average daily temperature
+
+Temperatures downloaded from <https://meteostat.net/en/place/it/bologna?s=16140&t=2025-01-01/2025-12-31>
+
+```{r briere function, echo=TRUE}
+#daily_temperatures <- read.csv("~/bologna temperature series.csv")
+#bologna.temperature.series <- read.csv("C:/Users/nsgoo/OneDrive/Desktop/Research Project/bologna temperature series.csv")
+
+bologna.temperature.series <- read.csv("C:/Users/nsgoo/OneDrive/Desktop/Research Project/bologna temperature series.csv")
+
+daily_temperatures <- bologna.temperature.series
+
+daily_temp <- daily_temperatures$tavg
+str(daily_temp)
+
+BriereNorm <- function(temp, T_minB, T_maxB, mB) {
+  
+  briere <- (temp - T_minB) * (T_maxB - temp)^mB
+  
+  briere[briere < 0] <- 0
+  briere[is.na(briere)] <- 0
+  
+  briere <- briere / max(briere, na.rm = TRUE)
+  
+  return(briere)
+}
+
+
+briere_value <- rep(BriereNorm(
+  temp = daily_temp, 
+  T_minB = 14, 
+  T_maxB = 34.3, 
+  mB = 0.7), #24 peak
+  10
+)
+
+briere_time <- seq(0, length(briere_value)-1, by=1)
+
+temp_seq <- seq(0.3, 31.15, by = 0.1)
+
+
+plot(temp_seq,
+     BriereNorm(temp_seq, 14, 34.3, 0.7), 
+     type = "l",
+     xlab = "Temperature (°C)",
+     ylab = "Brière response")
+```
+
+## Simulation
+
+```{r simulation}
+sys <- dust_system_create(
+  sir,
+  list(
+    beta = beta,
+    briere_time = briere_time,
+    briere_value = briere_value,
+    seed_pop=seed_pop
+  )
+)
+
+dust_system_set_state_initial(sys)
+
+t <- seq(0, 3649) # 5 years
+
+y <- dust_system_simulate(sys, t)
+
+y <- dust_unpack_state(sys, y)
+
+```
+
+## Plot of infected birds
+
+```{r infected birds, echo=TRUE}
+df <- as.data.frame(t(y$I))
+df$t <- t
+colnames(df)[1:5] <- c("P1", "P2", "P3", "P4", "P5")
+df$Total <- rowSums(df[, c("P1", "P2", "P3", "P4", "P5")])
+df_long <- pivot_longer(df, cols = c("P1", "P2", "P3", "P4", "P5", "Total"),
+                        names_to = "Population",
+                        values_to = "I")
+
+ggplot(df_long, aes(x = t, y = I, colour = Population)) +
+  geom_line(data = subset(df_long, Population != "Total")
+  ) +
+  labs(
+    title = "Simulated infection dynamics across five avian populations (10 years)",
+    y = "Infected birds",
+    x = "Time (days)"
+  ) +
+  theme_minimal()
+
+
+# infected plot by year
+
+month_breaks <- c(0,31,59,90,120,151,181,212,243,273,304,334,365)
+
+ggplot(data = subset(df_long, Population != "Total"), aes(x = t %% 365, y = I, color = Population)) +
+  geom_line() +
+  facet_wrap(~(floor(t/365)+1), ncol = 1) +
+  scale_x_continuous(
+    breaks = month_breaks,
+    labels = c("Jan","Feb","Mar","Apr","May","Jun",
+               "Jul","Aug","Sep","Oct","Nov","Dec","Jan")
+  ) +
+  labs(
+    x = "Month",
+    y = "Infected birds",
+    title = "Simulated infection dynamics across five avian populations (10 years)"
+  ) +
+  theme_minimal()
+
+## Summary table
+summary_table <- df_long |>
+  dplyr::group_by(Population) |>
+  dplyr::summarise(
+    Peak = max(I),
+    Peak_day = t[which.max(I)],
+    .groups = "drop"
+  )
+```
+
+## Plot of recovered birds
+
+```{r recovered birds, echo=TRUE}
+R_df <- as.data.frame(t(y$R))
+R_df$t <- t
+colnames(R_df)[1:5] <- c("P1", "P2", "P3", "P4", "P5")
+
+R_long <- pivot_longer(
+  R_df,
+  cols = c("P1", "P2", "P3", "P4", "P5"),
+  names_to = "Population",
+  values_to = "R"
+)
+
+ggplot(R_long, aes(x = t, y = R, color = Population)) +
+  geom_line() +
+  labs(title = "Simulated recovered birds in 5 populations over 10 years", 
+       x = "Time (days)",
+       y = "Recovered") +
+  theme_minimal()
+```
+
+## Plot of susceptible birds
+
+```{r susceptible birds, echo=TRUE}
+S_df <- as.data.frame(t(y$S))
+S_df$t <- t
+
+colnames(S_df)[1:5] <- c(
+  "P1",
+  "P2",
+  "P3",
+  "P4",
+  "P5"
+)
+
+S_long <- pivot_longer(
+  S_df,
+  cols = c("P1","P2","P3","P4","P5"),
+  names_to = "Population",
+  values_to = "S"
+)
+
+ggplot(S_long,
+       aes(t, S, colour = Population)) +
+  geom_line()+
+  labs(
+    title = "Simulated susceptible population size in 5 avian populations over 10 years",
+    x = "Time (days)",
+    y = "Number of Susceptible Birds") +
+  theme_minimal()
+```
+
+## Plot of total birds
+
+```{r total birds, echo=TRUE}
+N_mat <- y$S + y$E + y$I + y$R
+
+N_df <- as.data.frame(t(N_mat))
+N_df$t <- t
+
+colnames(N_df)[1:5] <- c(
+  "population 1",
+  "population 2",
+  "population 3",
+  "population 4",
+  "population 5"
+)
+
+N_long <- pivot_longer(
+  N_df,
+  cols = c("population 1",
+           "population 2",
+           "population 3",
+           "population 4",
+           "population 5"),
+  names_to = "group",
+  values_to = "N"
+)
+
+ggplot(N_long, aes(x = t, y = N, color = group)) +
+  geom_line(linewidth = 1) +
+  labs(
+    title = "Total population size over time",
+    x = "Time (days)",
+    y = "Number of birds"
+  ) +
+  theme_minimal()
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
