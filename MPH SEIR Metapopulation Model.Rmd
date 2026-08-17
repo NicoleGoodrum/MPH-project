@@ -22,8 +22,6 @@ library(dplyr)
 
 ## Transmission matrices
 
-You can also embed plots, for example:
-
 ```{r matrices, echo=FALSE}
 # Scenario 1
 beta <- matrix(c(
@@ -34,7 +32,7 @@ beta <- matrix(c(
   0, 0, 0, 0, 0.5
 ), 5, 5, byrow = TRUE)
 
-# Scenario 2 -  attack rate may be too high
+# Scenario 2 
 beta <- matrix(c(
   0.5, 0.5, 0.5, 0.5, 0.5,
   0.5, 0.5, 0.5, 0.5, 0.5,
@@ -80,8 +78,6 @@ beta <- matrix(c(
   0, 0, 0.005, 0.005, 0.50
 ), 5, 5, byrow = TRUE)
 ```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
 
 ## Temperature function
 ```{r temperature, echo=FALSE}
@@ -530,7 +526,7 @@ for (rep in 1:50) {
       .groups = "drop"
     )
   
-  # figure 17
+  # figure 17 dataframe
   trajectory_results[[rep]] <- df_propI_long %>%
     mutate(
       Year = floor(t / 365) + 1,
@@ -544,7 +540,7 @@ for (rep in 1:50) {
   
   # Combine all 50 simulations
   peak_summary <- dplyr::bind_rows(peak_results)
-  #dem_trajectory <- bind_rows(trajectory_results)
+  #baseline_trajectory <- bind_rows(trajectory_results)
 }
 ```
 ## distance-dependent model
@@ -690,9 +686,6 @@ y <- dust_unpack_state(sys, y)
 ```{r prevalence plot, echo=FALSE}
 
 pdf_plotI <- df_propI_long[df_propI_long$t >= (365 * 4), ]  # plot last 6 years
-
-## 6 years ##
-
 
 month_breaks <- c(0,31,59,90,120,151,181,212,243,273,304,334)
 
@@ -931,7 +924,6 @@ Incidence_long <- Incidence %>%
     values_to = "Incidence"
   )
 
-# Add year and Brière
 Incidence_long$Year <- floor(Incidence_long$t / 365) + 1
 Incidence_long$Briere <- rep(briere_value, each = 5)
 
@@ -940,7 +932,6 @@ S_long$Briere <- rep(briere_value, each = 5)
 
 N_long$Year <- floor(N_long$t / 365) + 1
 N_long$Briere <- rep(briere_value, each = 5)
-
 
 # Seasonal incidence
 
@@ -978,7 +969,6 @@ Births <- N_long %>%
     Births = sum(Births_at_time),
     .groups = "drop"
   )
-
 
 # Combine incidence, S at start, and births
 
@@ -1173,144 +1163,14 @@ overall_mean_peak_day <- peak_summary %>%
 ```
 ## figure 17
 ```{r figure 17, echo=FALSE}
-# prevalence
 
-peak_plot_data <- peak_summary %>%
-  filter(PeakDay != 182) %>%
-  group_by(Year, Seed) %>%
-  summarise(
-    MeanPeak = mean(PeakInfected, na.rm = TRUE),
-    MinPeak = min(PeakInfected, na.rm = TRUE),
-    MaxPeak = max(PeakInfected, na.rm = TRUE),
-    .groups = "drop"
-  ) %>%
-  mutate(
-    Seeded = ifelse(Seed == 1, "Seeded", "Non-seeded")
-  )
-
-peak_plot <- ggplot(peak_plot_data,
-                    aes(x = Year,
-                        y = MeanPeak,
-                        fill = Seeded)) +
-  geom_col(
-    position = position_dodge(width = 0.8),
-    width = 0.7
-  ) +
-  geom_errorbar(
-    aes(ymin = MinPeak,
-        ymax = MaxPeak),
-    position = position_dodge(width = 0.8),
-    width = 0.2
-  ) +
-  scale_fill_manual(
-    values = c(
-      "Seeded" = "#08519C",
-      "Non-seeded" = "grey85"
-    )
-  ) +
-  labs(
-    x = "Year",
-    y = "Peak prevalence (%)",
-    fill = NULL
-  ) +
-  scale_x_continuous(breaks = 1:10, labels = 1:10)+
-  theme_minimal()+ 
-  theme(
-    legend.position = "bottom")
-
-# peak day with dodge
-
-peak_day_plot_data <- peak_summary %>%
-  filter(PeakDay > 184) %>%
-  group_by(Year, Seed) %>%
-  summarise(
-    MeanPeakDay = mean(PeakDay, na.rm = TRUE),
-    MinPeakDay = min(PeakDay, na.rm = TRUE),
-    MaxPeakDay = max(PeakDay, na.rm = TRUE),
-    .groups = "drop"
-  ) %>%
-  mutate(
-    Seeded = ifelse(Seed == 1, "Seeded", "Non-seeded")
-  )
-
-peak_day_plot <- ggplot(
-  peak_day_plot_data,
-  aes(
-    x = Year,
-    y = MeanPeakDay,
-    shape = Seeded,
-    group = Seeded
-  )
-) +
-  geom_errorbar(
-    aes(
-      ymin = MinPeakDay,
-      ymax = MaxPeakDay
-    ),
-    width = 0.15,
-    position = position_dodge(width = 0.25)
-  ) +
-  geom_point(
-    size = 1.5,
-    position = position_dodge(width = 0.25)
-  ) +
-  labs(
-    x = "Year",
-    y = "Peak day",
-    shape = NULL
-  ) +
-  scale_x_continuous(
-    breaks = 1:10,
-    labels = 1:10
-  ) +
-  theme_minimal() +
-  theme(
-    legend.position = "bottom"
-  )
-
-
-# Panel
-(peak_plot / peak_day_plot)
-
-overall_mean_peak <- peak_summary %>%
-  filter(
-    PeakDay != 182,
-    Year != 1
-  ) %>%
-  group_by(Seed) %>%
-  summarise(
-    MeanPeak = mean(PeakInfected, na.rm = TRUE),
-    MinPeak = min(PeakInfected, na.rm = TRUE),
-    MaxPeak = max(PeakInfected, na.rm = TRUE),
-    n = sum(!is.na(PeakInfected)),
-    .groups = "drop"
-  ) %>%
-  mutate(
-    Seeded = ifelse(Seed == 1, "Seeded", "Non-seeded")
-  )
-
-overall_mean_peak_day <- peak_summary %>%
-  filter(
-    PeakDay > 184,
-    Year != 1
-  ) %>%
-  group_by(Seed) %>%
-  summarise(
-    MeanPeakDay = mean(PeakDay, na.rm = TRUE),
-    MinPeakDay = min(PeakDay, na.rm = TRUE),
-    MaxPeakDay = max(PeakDay, na.rm = TRUE),
-    n = sum(!is.na(PeakDay)),
-    .groups = "drop"
-  ) %>%
-  mutate(
-    Seeded = ifelse(Seed == 1, "Seeded", "Non-seeded")
-  )
+# uses "trajectory" data
 
 baseline_trajectory <- baseline_trajectory %>%
   mutate(Scenario = "Baseline")
 
 trajectory_summary <- trajectory_summary %>%
-  mutate(Scenario = "Temperature")
+  mutate(Scenario = " ") # insert scenario name
 
 all_trajectories <- bind_rows(
   baseline_trajectory,
@@ -1319,7 +1179,7 @@ all_trajectories <- bind_rows(
 
 
 trajectory_plot_data <- all_trajectories %>%
-  filter(Year >= 2) %>%
+  filter(Year >= 2) %>% #excluding year 1
   group_by(Simulation, Scenario, Year, t, Seeded) %>%
   summarise(
     MeanPropI = mean(PropI, na.rm = TRUE),
@@ -1342,8 +1202,7 @@ year_labels <- c(
   "2", "3", "4", "5", "6",
   "7", "8", "9", "10")
 
-
-temp_dynamics <- ggplot(
+dynamics <- ggplot(
   trajectory_plot_data,
   aes(x = t, y = Mean, colour = Scenario)
 ) +
@@ -1373,175 +1232,31 @@ temp_dynamics <- ggplot(
     legend.position = "inside", legend.position.inside = c(0.85, 0.95)
   )
 
+# repeat for scenarios 8-10 + baseline
+
+## colour-coded attack rates compared to baseline ##
 
 
-# population size trajectory
+## attack rate saved from previous multi-panel figures
 
-popsize_trajectory <- popsize_trajectory %>%
-  mutate(Scenario = "Population size")
+# insert scenario of interest and repeat for scenarios 8-10 + baseline
 
-all_trajectories <- bind_rows(
-  baseline_trajectory,
-  popsize_trajectory
-)
-
-
-trajectory_plot_data <- all_trajectories %>%
-  filter(Year >= 2) %>%
-  group_by(Simulation, Scenario, Year, t, Seeded) %>%
-  summarise(
-    MeanPropI = mean(PropI, na.rm = TRUE),
-    .groups = "drop"
-  ) %>%
-  group_by(Scenario, Year, t, Seeded) %>%
-  summarise(
-    Mean = mean(MeanPropI, na.rm = TRUE),
-    Lower = quantile(MeanPropI, 0.025, na.rm = TRUE),
-    Upper = quantile(MeanPropI, 0.975, na.rm = TRUE),
-    .groups = "drop"
-  )
-
-year_breaks <- c(
-  365, 730, 1095, 1460, 1825,
-  2190, 2555, 2920, 3285
-)
-
-year_labels <- c(
-  "2", "3", "4", "5", "6",
-  "7", "8", "9", "10"
-)
-
-
-pop_dynamics <- ggplot(
-  trajectory_plot_data,
-  aes(x = t, y = Mean, colour = Scenario)
-) +
-  geom_ribbon(
-    aes(
-      ymin = Lower,
-      ymax = Upper,
-      fill = Scenario
-    ),
-    alpha = 0.15,
-    colour = NA
-  ) +
-  geom_line(linewidth = 0.8) +
-  facet_wrap(~Seeded, ncol = 1) +
-  scale_x_continuous(
-    breaks = year_breaks,
-    labels = year_labels
-  ) +
-  labs(
-    x = "Time (years)",
-    y = "Mean prevalence (%)",
-    colour = NULL,
-    fill = NULL
-  ) +
-  theme_minimal() +
-  theme(
-    legend.position = "inside", legend.position.inside = c(0.85, 0.95)
-    )
-
-
-
-# mean infection dynamics over time (scenarios 8-10 compared to baseline)
-
-dem_trajectory <- dem_trajectory %>%
-  mutate(Scenario = "Demographic traits")
-
-all_trajectories <- bind_rows(
-  baseline_trajectory,
-  dem_trajectory
-)
-
-
-trajectory_plot_data <- all_trajectories %>%
-  filter(Year >= 2) %>%
-  group_by(Simulation, Scenario, Year, t, Seeded) %>%
-  summarise(
-    MeanPropI = mean(PropI, na.rm = TRUE),
-    .groups = "drop"
-  ) %>%
-  group_by(Scenario, Year, t, Seeded) %>%
-  summarise(
-    Mean = mean(MeanPropI, na.rm = TRUE),
-    Lower = quantile(MeanPropI, 0.025, na.rm = TRUE),
-    Upper = quantile(MeanPropI, 0.975, na.rm = TRUE),
-    .groups = "drop"
-  )
-
-year_breaks <- c(
-  365, 730, 1095, 1460, 1825,
-  2190, 2555, 2920, 3285
-)
-
-year_labels <- c(
-  "2", "3", "4", "5", "6",
-  "7", "8", "9", "10"
-)
-
-# edit code for appropriate scenario
-
-dem_dynamics <- ggplot(
-  trajectory_plot_data,
-  aes(x = t, y = Mean, colour = Scenario)
-) +
-  geom_ribbon(
-    aes(
-      ymin = Lower,
-      ymax = Upper,
-      fill = Scenario
-    ),
-    alpha = 0.15,
-    colour = NA
-  ) +
-  geom_line(linewidth = 0.8) +
-  facet_wrap(~Seeded, ncol = 1) +
-  scale_x_continuous(
-    breaks = year_breaks,
-    labels = year_labels
-  ) +
-  labs(
-    x = "Time (years)",
-    y = "Mean prevalence (%)",
-    colour = NULL,
-    fill = NULL
-  ) +
-  theme_minimal() +
-  theme(
-    legend.position = "inside", legend.position.inside = c(0.85, 0.95)
-  )
-
-# panel
-(pop_dynamics/
-    dem_dynamics/
-    temp_dynamics)+
-  plot_annotation(tag_levels = "a")
-
-
-# colour-coded attack rates compared to baseline
-
-
-## attack rate saved from multi-panel figures
-
-# TEMPERATURE
-
-AR_temp <- AR_temp %>%
-  mutate(Scenario = "Temperature")
+AR_scenario <- AR_scenario %>%
+  mutate(Scenario = " ") #insert scenario name
 
 AR_baseline <- AR_baseline %>%
   mutate(Scenario = "Baseline")
 
 
-# Bind baseline and temperature data
-AR_base_temp <- bind_rows(
+# Bind baseline and scenario data
+AR_base_scenario <- bind_rows(
   AR_baseline,
-  AR_temp
+  AR_scenario
 )
 
 
 # Calculate whether AR is higher/lower than baseline
-AR_plot <- AR_base_temp %>%
+AR_plot <- AR_base_scenario %>%
   group_by(Population, Year) %>%
   mutate(
     BaselineAR = AttackRate[Scenario == "Baseline"],
@@ -1555,13 +1270,12 @@ AR_plot <- AR_base_temp %>%
   ungroup()
 
 
-AR_temp_plot <- AR_plot %>%
+AR_scenario_plot <- AR_plot %>%
   filter(
-    Scenario == "Temperature"
+    Scenario == " " # scenario name
   )
 
-
-AR_temp_plot <- AR_temp %>%
+AR_scenario_plot <- AR_plot %>%
   left_join(
     AR_baseline %>%
       select(Population, Year, BaselineAR = AttackRate),
@@ -1572,7 +1286,7 @@ AR_temp_plot <- AR_temp %>%
   )
 
 # plot
-AR_temp <- ggplot(
+AR_scenario <- ggplot(
   AR_temp_plot,
   aes(
     x = Year,
@@ -1604,184 +1318,3 @@ AR_temp <- ggplot(
   theme(
     legend.position = "bottom"
   )
-
-
-# POPULATION SIZE
-
-
-AR_pop <- AR_pop %>%
-  mutate(Scenario = "Population")
-
-AR_baseline <- AR_baseline %>%
-  mutate(Scenario = "Baseline")
-
-
-# Bind baseline and population size data
-AR_base_pop <- bind_rows(
-  AR_baseline,
-  AR_pop
-)
-
-
-# AR higher/lower than baseline
-AR_plot <- AR_base_pop %>%
-  group_by(Population, Year) %>%
-  mutate(
-    BaselineAR = AttackRate[Scenario == "Baseline"],
-    Direction = case_when(
-      Scenario == "Baseline" ~ "Baseline",
-      AttackRate > BaselineAR ~ "Higher",
-      AttackRate < BaselineAR ~ "Lower",
-      TRUE ~ "Same"
-    )
-  ) %>%
-  ungroup()
-
-AR_pop_plot <- AR_plot %>%
-  filter(
-    Scenario == "Population"
-  )
-
-AR_pop_plot <- AR_pop %>%
-  left_join(
-    AR_baseline %>%
-      select(Population, Year, BaselineAR = AttackRate),
-    by = c("Population", "Year")
-  ) %>%
-  mutate(
-    Difference = AttackRate - BaselineAR
-  )
-
-
-AR_pop <-ggplot(
-  AR_pop_plot,
-  aes(
-    x = Year,
-    y = AttackRate,
-    fill = Difference
-  )
-) +
-  geom_col() +
-  facet_wrap(
-    ~ Population,
-    nrow = 1
-  ) +
-  scale_fill_gradient2(
-    low = "#4575B4",
-    mid = "grey85",
-    high = "#D73027",
-    midpoint = 0,
-    limits = c(-20, 20),
-    name = "Difference"
-  ) +
-  scale_x_continuous(
-    breaks = 1:10
-  ) +
-  labs(
-    x = "Year",
-    y = "Seasonal attack rate (%)"
-  ) +
-  theme_minimal() +
-  theme(
-    legend.position = "none"
-  )
-
-# DEMOGRAPHY
-
-AR_dem <- AR_dem %>%
-  mutate(Scenario = "Demographic traits")
-
-AR_baseline <- AR_baseline %>%
-  mutate(Scenario = "Baseline")
-
-
-# Bind baseline and demography data
-AR_base_dem <- bind_rows(
-  AR_baseline,
-  AR_dem
-)
-
-
-# AR higher/lower than baseline
-AR_plot <- AR_base_dem %>%
-  group_by(Population, Year) %>%
-  mutate(
-    BaselineAR = AttackRate[Scenario == "Baseline"],
-    Direction = case_when(
-      Scenario == "Baseline" ~ "Baseline",
-      AttackRate > BaselineAR ~ "Higher",
-      AttackRate < BaselineAR ~ "Lower",
-      TRUE ~ "Same"
-    )
-  ) %>%
-  ungroup()
-
-AR_dem_plot <- AR_plot %>%
-  filter(
-    Scenario == "Demographic traits"
-  )
-
-AR_dem_plot <- AR_dem %>%
-  left_join(
-    AR_baseline %>%
-      select(Population, Year, BaselineAR = AttackRate),
-    by = c("Population", "Year")
-  ) %>%
-  mutate(
-    Difference = AttackRate - BaselineAR
-  )
-
-
-AR_dem <- ggplot(
-  AR_dem_plot,
-  aes(
-    x = Year,
-    y = AttackRate,
-    fill = Difference
-  )
-) +
-  geom_col() +
-  facet_wrap(
-    ~ Population,
-    nrow = 1
-  ) +
-  scale_fill_gradient2(
-    low = "#4575B4",
-    mid = "grey85",
-    high = "#D73027",
-    midpoint = 0,
-    limits = c(-20, 20),
-    name = "Difference"
-  ) +
-  scale_x_continuous(
-    breaks = 1:10
-  ) +
-  labs(
-    x = "Year",
-    y = "Seasonal attack rate (%)"
-  ) +
-  theme_minimal() +
-  theme(
-    legend.position = "none"
-  )
-
-# panel
-(AR_pop/
-    AR_dem/
-    AR_temp)+
-  plot_annotation(tag_levels = "a")
-
-(pop_dynamics/
-    dem_dynamics/
-    temp_dynamics)+
-  plot_annotation(tag_levels = "a")
-
-(
-  (AR_pop | pop_dynamics) /
-    (AR_dem | dem_dynamics) /
-    (AR_temp | temp_dynamics)
-) +
-  plot_annotation(tag_levels = "a")
-
-
-```
